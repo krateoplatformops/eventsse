@@ -1,0 +1,8 @@
+apiVersion: eventrouter.krateo.io/v1alpha1
+kind: Registration
+metadata:
+  name: eventsse
+  namespace: demo-system
+spec:
+  serviceName: Eventrouter SSE
+  endpoint: http://eventsse.demo-system.svc.cluster.local/handle

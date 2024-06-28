@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eventsse
+  namespace: demo-system
+  labels:
+    app: "eventsse"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: "eventsse"
+  template:
+    metadata:
+      labels:
+        app: "eventsse"
+    spec:
+      serviceAccountName: eventsse
+      containers:
+      - name: eventsse
+        image: kind.local/eventsse:latest
+        imagePullPolicy: Never
+        args:
+        - --dump-env=true
+        - --debug=true
+        - --cors=true
+        ports:
+        - containerPort: 8181
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+    

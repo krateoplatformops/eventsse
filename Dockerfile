@@ -19,7 +19,6 @@ COPY go.sum go.sum
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
 
-COPY apis/ apis/
 COPY internal/ internal/
 COPY main.go main.go
 

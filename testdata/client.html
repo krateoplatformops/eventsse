@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+	<head>
+	</head>
+	<body>
+		<script type="text/javascript">
+            const source = new EventSource("//127.0.0.1:30081/events", {
+                withCredentials: false,
+            });
+			
+			source.addEventListener("krateo", function (event) { 4
+  				document.getElementById("msg").innerHTML += event.data + "<br>";
+			});
+			
+			source.onmessage = function(event) {
+			    console.log(event)
+			};
+
+		</script>
+		<div style="width: 100%; overflow: hidden;">
+   			<div style="width: 600px; float: left;" id="feed_update"></div>
+    		<div style="margin-left: 620px;" id="msg"></div>
+		</div>
+	</body>
+</html>

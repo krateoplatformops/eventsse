@@ -1,12 +1,29 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: eventsse
+  name: eventsse-internal
   namespace: demo-system
 spec:
   selector:
     app: "eventsse"
   ports:
-  - protocol: TCP
+  - name: eventrouter
+    protocol: TCP
     port: 80
     targetPort: 8181
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eventsse-external
+  namespace: demo-system
+spec:
+  selector:
+    app: "eventsse"
+  type: NodePort
+  ports:
+  - name: sse
+    port: 80
+    targetPort: 8181
+    protocol: TCP
+    nodePort: 30081

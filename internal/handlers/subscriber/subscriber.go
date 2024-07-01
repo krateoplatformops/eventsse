@@ -25,7 +25,7 @@ type handler struct {
 }
 
 func (r *handler) Name() string {
-	return "events"
+	return "subscriber"
 }
 
 func (r *handler) Pattern() string {
@@ -62,7 +62,7 @@ func (r *handler) Handler() http.HandlerFunc {
 			return
 		}
 
-		j, err := queue.NewJob(nfo.Metadata.UID)
+		j, err := queue.NewJob(nfo.Metadata.Name)
 		if err != nil && !decode.IsEmptyBodyError(err) {
 			log.Error().Msg(err.Error())
 			http.Error(wri, err.Error(), http.StatusInternalServerError)

@@ -5,4 +5,4 @@ metadata:
   namespace: demo-system
 spec:
   serviceName: Eventrouter SSE
-  endpoint: http://eventsse.demo-system.svc.cluster.local/handle
+  endpoint: http://eventsse-internal.demo-system.svc.cluster.local/handle

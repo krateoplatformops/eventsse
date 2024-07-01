@@ -14,9 +14,10 @@ import (
 	"github.com/krateoplatformops/eventsse/internal/env"
 	"github.com/krateoplatformops/eventsse/internal/handlers"
 	"github.com/krateoplatformops/eventsse/internal/handlers/health"
+	"github.com/krateoplatformops/eventsse/internal/handlers/publisher"
 	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
 	"github.com/krateoplatformops/eventsse/internal/middlewares/cors"
-	"github.com/krateoplatformops/eventsse/internal/queue"
+	"github.com/krateoplatformops/eventsse/internal/queue/memory"
 	"github.com/rs/zerolog"
 )
 
@@ -70,10 +71,7 @@ func main() {
 		evt.Msg("configuration and env vars")
 	}
 
-	broker, err := queue.NewBroker("memory://")
-	if err != nil {
-		log.Fatal().Err(err).Msgf("could not create memory broker")
-	}
+	broker := memory.New()
 	defer func() {
 		if err := broker.Close(); err != nil {
 			log.Info().Err(err).Msgf("could not close memory broker")
@@ -85,6 +83,7 @@ func main() {
 	all := []handlers.Handler{}
 	all = append(all, health.Check(&healthy, serviceName))
 	all = append(all, subscriber.Handle(broker, *debugOn))
+	all = append(all, publisher.Handle(broker))
 
 	handler := handlers.Serve(all)
 	if *corsOn {

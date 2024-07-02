@@ -50,6 +50,14 @@ func (r *handler) Handler() http.HandlerFunc {
 			return
 		}
 
+		f, ok := wri.(http.Flusher)
+		if !ok {
+			msg := "http.ResponseWriter does not implement http.Flusher"
+			log.Error().Msg(msg)
+			http.Error(wri, msg, http.StatusInternalServerError)
+			return
+		}
+
 		wri.Header().Set("Access-Control-Allow-Origin", "*")
 		wri.Header().Set("Access-Control-Expose-Headers", "Content-Type")
 
@@ -58,12 +66,14 @@ func (r *handler) Handler() http.HandlerFunc {
 		wri.Header().Set("Content-Type", "text/event-stream")
 		wri.Header().Set("Cache-Control", "no-cache")
 		wri.Header().Set("Connection", "keep-alive")
+		wri.WriteHeader(http.StatusOK)
 
 		ctx := req.Context()
 
 		select {
 		case <-ctx.Done():
 			//someCleanup(ctx.Err())
+			wri.(http.Flusher).Flush()
 			return
 		default:
 			for {
@@ -82,7 +92,7 @@ func (r *handler) Handler() http.HandlerFunc {
 				fmt.Fprintf(wri, "id: %s\n", job.ID)
 				fmt.Fprintf(wri, "data: %s\n\n", string(job.Raw))
 
-				wri.(http.Flusher).Flush()
+				f.Flush()
 			}
 
 		}

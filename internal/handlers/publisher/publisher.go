@@ -50,9 +50,10 @@ func (r *handler) Handler() http.HandlerFunc {
 			return
 		}
 
-		// Set CORS headers to allow all origins. You may want to restrict this to specific origins in a production environment.
 		wri.Header().Set("Access-Control-Allow-Origin", "*")
 		wri.Header().Set("Access-Control-Expose-Headers", "Content-Type")
+
+		wri.Header().Set("X-Accel-Buffering", "no")
 
 		wri.Header().Set("Content-Type", "text/event-stream")
 		wri.Header().Set("Cache-Control", "no-cache")

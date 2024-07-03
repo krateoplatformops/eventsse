@@ -93,6 +93,10 @@ func (r *handler) Handler() http.HandlerFunc {
 				fmt.Fprintf(wri, "data: %s\n\n", string(job.Raw))
 
 				f.Flush()
+
+				if r.verbose {
+					log.Debug().Str("id", job.ID).Msg("SSE Done")
+				}
 			}
 
 		}

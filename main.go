@@ -11,13 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/krateoplatformops/eventsse/internal/cache"
 	"github.com/krateoplatformops/eventsse/internal/env"
-	"github.com/krateoplatformops/eventsse/internal/handlers"
 	"github.com/krateoplatformops/eventsse/internal/handlers/health"
 	"github.com/krateoplatformops/eventsse/internal/handlers/publisher"
 	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
-	"github.com/krateoplatformops/eventsse/internal/middlewares/cors"
-	"github.com/krateoplatformops/eventsse/internal/queue/memory"
 	"github.com/rs/zerolog"
 )
 
@@ -26,7 +24,7 @@ const (
 )
 
 func main() {
-	debugOn := flag.Bool("debug", env.Bool("EVENTSSE_DEBUG", false), "dump verbose output")
+	debugOn := flag.Bool("debug", env.Bool("EVENTSSE_DEBUG", true), "dump verbose output")
 	dumpEnv := flag.Bool("dump-env", env.Bool("EVENTSSE_DUMP_ENV", false), "dump environment variables")
 	corsOn := flag.Bool("cors", env.Bool("EVENTSSE_CORS", true), "enable or disable CORS")
 	port := flag.Int("port", env.Int("EVENTSSE_PORT", 8181), "port to listen on")
@@ -71,44 +69,22 @@ func main() {
 		evt.Msg("configuration and env vars")
 	}
 
-	broker := memory.New()
+	myTTLCache := cache.NewTTL[string, subscriber.EventInfo]()
 	defer func() {
-		if err := broker.Close(); err != nil {
-			log.Info().Err(err).Msgf("could not close memory broker")
-		}
+		myTTLCache.Clear()
 	}()
+
+	mux := http.NewServeMux()
 
 	healthy := int32(0)
 
-	all := []handlers.Handler{}
-	all = append(all, health.Check(&healthy, serviceName))
-	all = append(all, subscriber.Handle(broker, *debugOn))
-	all = append(all, publisher.Handle(broker))
-
-	handler := handlers.Serve(all)
-	if *corsOn {
-		c := cors.New(cors.Options{
-			AllowedOrigins: []string{"*"},
-			AllowedMethods: []string{"GET", "OPTIONS"},
-			AllowedHeaders: []string{
-				"Accept",
-				"Authorization",
-				"Content-Type",
-				"X-Auth-Code",
-				"X-Krateo-User",
-				"X-Krateo-Groups",
-			},
-			ExposedHeaders:   []string{"Link"},
-			AllowCredentials: true,
-			MaxAge:           300,
-		})
-
-		handler = c.Handler(handler)
-	}
+	mux.Handle("GET /health", health.Check(&healthy, serviceName))
+	mux.Handle("POST /handle", subscriber.Handle(myTTLCache))
+	mux.Handle("GET /events", publisher.SSE(myTTLCache))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *port),
-		Handler:      handler,
+		Handler:      mux,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 50 * time.Second,
 		IdleTimeout:  30 * time.Second,

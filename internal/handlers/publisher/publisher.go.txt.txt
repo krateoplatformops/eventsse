@@ -1,0 +1,78 @@
+package publisher
+
+import (
+	"net/http"
+
+	"github.com/gorilla/websocket"
+	"github.com/krateoplatformops/eventsse/internal/httputil/decode"
+	"github.com/krateoplatformops/eventsse/internal/queue"
+	"github.com/rs/zerolog"
+)
+
+func WS(broker queue.Broker) http.Handler {
+	return &handler{
+		verbose:  true,
+		broker:   broker,
+		upgrader: websocket.Upgrader{},
+	}
+}
+
+var _ http.Handler = (*handler)(nil)
+
+type handler struct {
+	verbose  bool
+	broker   queue.Broker
+	upgrader websocket.Upgrader
+}
+
+func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
+	log := zerolog.Ctx(req.Context()).With().Logger()
+	if r.verbose {
+		log = log.Level(zerolog.DebugLevel)
+	}
+
+	q, err := r.broker.Queue("events")
+	if err != nil && !decode.IsEmptyBodyError(err) {
+		log.Error().Msg(err.Error())
+		return
+	}
+
+	c, err := r.upgrader.Upgrade(wri, req, nil)
+	if err != nil {
+		log.Error().Msg(err.Error())
+		http.Error(wri, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer c.Close()
+
+	ctx := req.Context()
+	select {
+	case <-ctx.Done():
+		//someCleanup(ctx.Err())
+		return
+	default:
+		for {
+			iter, _ := q.Consume(1)
+			job, err := iter.Next()
+			if err != nil {
+				log.Error().Msg(err.Error())
+				break
+			}
+
+			if r.verbose {
+				log.Debug().Str("id", job.ID).Msg("Sending WS Event")
+			}
+
+			err = c.WriteMessage(websocket.TextMessage, job.Raw)
+			if err != nil {
+				log.Error().Msg(err.Error())
+				break
+			}
+
+			if r.verbose {
+				log.Debug().Str("id", job.ID).Msg("WS Event Sent")
+			}
+		}
+
+	}
+}

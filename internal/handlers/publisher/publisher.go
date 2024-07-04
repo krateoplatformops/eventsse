@@ -1,104 +1,83 @@
 package publisher
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
-	"github.com/krateoplatformops/eventsse/internal/handlers"
-	"github.com/krateoplatformops/eventsse/internal/httputil/decode"
-	"github.com/krateoplatformops/eventsse/internal/queue"
+	"github.com/krateoplatformops/eventsse/internal/cache"
+	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
 	"github.com/rs/zerolog"
 )
 
-func Handle(broker queue.Broker) handlers.Handler {
+func SSE(ttlCache *cache.TTLCache[string, subscriber.EventInfo]) http.Handler {
 	return &handler{
-		verbose: true,
-		broker:  broker,
+		ttlCache: ttlCache,
 	}
 }
 
-var _ handlers.Handler = (*handler)(nil)
+var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	verbose bool
-	broker  queue.Broker
+	ttlCache *cache.TTLCache[string, subscriber.EventInfo]
 }
 
-func (r *handler) Name() string {
-	return "publisher"
-}
+func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
+	log := zerolog.New(os.Stdout).With().
+		Str("service", "eventsse").
+		Timestamp().
+		Logger()
 
-func (r *handler) Pattern() string {
-	return "/events"
-}
+	f, ok := wri.(http.Flusher)
+	if !ok {
+		msg := "http.ResponseWriter does not implement http.Flusher"
+		log.Error().Msg(msg)
+		http.Error(wri, msg, http.StatusInternalServerError)
+		return
+	}
 
-func (r *handler) Methods() []string {
-	return []string{http.MethodGet}
-}
+	wri.Header().Set("Access-Control-Allow-Origin", "*")
+	wri.Header().Set("Access-Control-Expose-Headers", "Authorization,Content-Type")
+	wri.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type")
+	wri.Header().Set("Access-Control-Allow-Credentials", "true")
 
-func (r *handler) Handler() http.HandlerFunc {
-	return func(wri http.ResponseWriter, req *http.Request) {
-		log := zerolog.Ctx(req.Context()).With().Logger()
-		if r.verbose {
-			log = log.Level(zerolog.DebugLevel)
-		}
+	wri.Header().Set("X-Accel-Buffering", "no")
+	wri.Header().Set("Content-Type", "text/event-stream")
+	wri.Header().Set("Cache-Control", "no-cache")
+	wri.Header().Set("Connection", "keep-alive")
 
-		q, err := r.broker.Queue("events")
-		if err != nil && !decode.IsEmptyBodyError(err) {
-			log.Error().Msg(err.Error())
-			http.Error(wri, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	ctx := req.Context()
 
-		f, ok := wri.(http.Flusher)
-		if !ok {
-			msg := "http.ResponseWriter does not implement http.Flusher"
-			log.Error().Msg(msg)
-			http.Error(wri, msg, http.StatusInternalServerError)
-			return
-		}
-
-		wri.Header().Set("Access-Control-Allow-Origin", "*")
-		wri.Header().Set("Access-Control-Expose-Headers", "Content-Type")
-
-		wri.Header().Set("X-Accel-Buffering", "no")
-
-		wri.Header().Set("Content-Type", "text/event-stream")
-		wri.Header().Set("Cache-Control", "no-cache")
-		wri.Header().Set("Connection", "keep-alive")
-		wri.WriteHeader(http.StatusOK)
-
-		ctx := req.Context()
-
-		select {
-		case <-ctx.Done():
-			//someCleanup(ctx.Err())
-			wri.(http.Flusher).Flush()
-			return
-		default:
-			for {
-				iter, _ := q.Consume(1)
-				job, err := iter.Next()
-				if err != nil {
-					log.Error().Msg(err.Error())
-					break
-				}
-
-				if r.verbose {
-					log.Debug().Str("id", job.ID).Msg("Sending SSE")
-				}
-
-				fmt.Fprintln(wri, "event: krateo")
-				fmt.Fprintf(wri, "id: %s\n", job.ID)
-				fmt.Fprintf(wri, "data: %s\n\n", string(job.Raw))
-
-				f.Flush()
-
-				if r.verbose {
-					log.Debug().Str("id", job.ID).Msg("SSE Done")
-				}
+	select {
+	case <-ctx.Done():
+		f.Flush()
+		return
+	default:
+		//for {
+		for _, k := range r.ttlCache.Keys() {
+			obj, ok := r.ttlCache.Get(k)
+			if !ok {
+				log.Warn().Str("id", k).Msg("Event not found in cache, maybe expired?")
+				continue
 			}
 
+			dat, err := json.Marshal(&obj)
+			if err != nil {
+				log.Error().Str("id", k).Msg("Encoding Event as JSON string")
+				continue
+			}
+
+			log.Info().Str("id", k).Msg("Sending SSE")
+
+			fmt.Fprintln(wri, "event: krateo")
+			//fmt.Fprintf(wri, "id: %s\n", k)
+			fmt.Fprintf(wri, "data: %s\n\n", string(dat))
+			f.Flush()
+
+			r.ttlCache.Remove(k)
+			log.Info().Str("id", k).Msg("SSE Done")
 		}
+		//}
 	}
 }

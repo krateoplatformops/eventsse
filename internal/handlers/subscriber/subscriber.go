@@ -2,87 +2,54 @@ package subscriber
 
 import (
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/krateoplatformops/eventsse/internal/handlers"
+	"github.com/krateoplatformops/eventsse/internal/cache"
 	"github.com/krateoplatformops/eventsse/internal/httputil/decode"
-	"github.com/krateoplatformops/eventsse/internal/queue"
 	"github.com/rs/zerolog"
 )
 
-func Handle(broker queue.Broker, verbose bool) handlers.Handler {
+func Handle(ttlCache *cache.TTLCache[string, EventInfo]) http.Handler {
 	return &handler{
-		verbose: verbose,
-		broker:  broker,
+		ttlCache: ttlCache,
 	}
 }
 
-var _ handlers.Handler = (*handler)(nil)
+var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	verbose bool
-	broker  queue.Broker
+	ttlCache *cache.TTLCache[string, EventInfo]
 }
 
-func (r *handler) Name() string {
-	return "subscriber"
-}
+func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
+	// if req.Method != http.MethodPost {
+	// 	wri.Header().Set("Allow", "POST")
+	// 	http.Error(wri, "405 method not allowed", http.StatusMethodNotAllowed)
+	// 	return
+	// }
 
-func (r *handler) Pattern() string {
-	return "/handle"
-}
+	log := zerolog.New(os.Stdout).With().
+		Str("service", "eventsse").
+		Timestamp().
+		Logger()
 
-func (r *handler) Methods() []string {
-	return []string{http.MethodPost}
-}
-
-func (r *handler) Handler() http.HandlerFunc {
-	return func(wri http.ResponseWriter, req *http.Request) {
-		log := zerolog.Ctx(req.Context()).With().Logger()
-		if r.verbose {
-			log = log.Level(zerolog.DebugLevel)
-		}
-
-		var nfo EventInfo
-		err := decode.JSONBody(wri, req, &nfo)
-		if err != nil && !decode.IsEmptyBodyError(err) {
-			log.Error().Msg(err.Error())
-			http.Error(wri, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if r.verbose {
-			log.Debug().Interface("event", nfo).Msg("Event received")
-		}
-
-		q, err := r.broker.Queue("events")
-		if err != nil && !decode.IsEmptyBodyError(err) {
-			log.Error().Msg(err.Error())
-			http.Error(wri, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		j, err := queue.NewJob(nfo.Metadata.Name)
-		if err != nil && !decode.IsEmptyBodyError(err) {
-			log.Error().Msg(err.Error())
-			http.Error(wri, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if err := j.Encode(nfo); err != nil {
-			log.Error().Msg(err.Error())
-			http.Error(wri, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if err := q.Publish(j); err != nil {
-			log.Error().Msg(err.Error())
-			http.Error(wri, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		wri.WriteHeader(http.StatusOK)
+	var nfo EventInfo
+	err := decode.JSONBody(wri, req, &nfo)
+	if err != nil && !decode.IsEmptyBodyError(err) {
+		log.Error().Msg(err.Error())
+		http.Error(wri, err.Error(), http.StatusBadRequest)
+		return
 	}
+
+	id := nfo.Metadata.UID
+	r.ttlCache.Set(id, nfo, time.Minute*10)
+	log.Info().Str("id", id).Msg("Event received")
+
+	wri.WriteHeader(http.StatusOK)
+	wri.Header().Set("Content-Type", "text/plain")
+	wri.Write([]byte(id))
+
 }
 
 type InvolvedObject struct {

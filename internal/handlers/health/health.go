@@ -4,49 +4,39 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync/atomic"
-
-	"github.com/krateoplatformops/eventsse/internal/handlers"
 )
 
-func Check(healthy *int32, serviceName string) handlers.Handler {
-	return &healthRoute{
+func Check(healthy *int32, serviceName string) http.Handler {
+	return &handler{
 		healthy:     healthy,
 		serviceName: serviceName,
 	}
 }
 
-var _ handlers.Handler = (*healthRoute)(nil)
+var _ http.Handler = (*handler)(nil)
 
-type healthRoute struct {
+type handler struct {
 	healthy     *int32
 	serviceName string
 }
 
-func (r *healthRoute) Name() string {
-	return "health"
-}
-
-func (r *healthRoute) Pattern() string {
-	return "/health"
-}
-
-func (r *healthRoute) Methods() []string {
-	return []string{http.MethodGet}
-}
-
-func (r *healthRoute) Handler() http.HandlerFunc {
-	return func(wri http.ResponseWriter, _ *http.Request) {
-		if atomic.LoadInt32(r.healthy) == 1 {
-			data := map[string]string{
-				"name": r.serviceName,
-				//"version": r.version,
-			}
-
-			wri.Header().Set("Content-Type", "application/json")
-			wri.WriteHeader(http.StatusOK)
-			json.NewEncoder(wri).Encode(data)
-			return
-		}
-		wri.WriteHeader(http.StatusServiceUnavailable)
+func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		wri.Header().Set("Allow", "GET")
+		http.Error(wri, "405 method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
+
+	if atomic.LoadInt32(r.healthy) == 1 {
+		data := map[string]string{
+			"name": r.serviceName,
+			//"version": r.version,
+		}
+
+		wri.Header().Set("Content-Type", "application/json")
+		wri.WriteHeader(http.StatusOK)
+		json.NewEncoder(wri).Encode(data)
+		return
+	}
+	wri.WriteHeader(http.StatusServiceUnavailable)
 }

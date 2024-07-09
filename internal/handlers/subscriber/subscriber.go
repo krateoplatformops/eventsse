@@ -3,38 +3,44 @@ package subscriber
 import (
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"github.com/krateoplatformops/eventsse/internal/cache"
 	"github.com/krateoplatformops/eventsse/internal/httputil/decode"
+	"github.com/krateoplatformops/eventsse/internal/labels"
+	"github.com/krateoplatformops/eventsse/internal/store"
 	"github.com/rs/zerolog"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
-func Handle(ttlCache *cache.TTLCache[string, EventInfo]) http.Handler {
+type HandleOptions struct {
+	TTLCache    *cache.TTLCache[string, corev1.Event]
+	StoreClient *store.Client
+}
+
+func Handle(opts HandleOptions) http.Handler {
 	return &handler{
-		ttlCache: ttlCache,
+		ttlCache:    opts.TTLCache,
+		storeClient: opts.StoreClient,
 	}
 }
 
 var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	ttlCache *cache.TTLCache[string, EventInfo]
+	ttlCache    *cache.TTLCache[string, corev1.Event]
+	storeClient *store.Client
 }
 
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
-	// if req.Method != http.MethodPost {
-	// 	wri.Header().Set("Allow", "POST")
-	// 	http.Error(wri, "405 method not allowed", http.StatusMethodNotAllowed)
-	// 	return
-	// }
-
 	log := zerolog.New(os.Stdout).With().
 		Str("service", "eventsse").
 		Timestamp().
 		Logger()
 
-	var nfo EventInfo
+	var nfo corev1.Event
 	err := decode.JSONBody(wri, req, &nfo)
 	if err != nil && !decode.IsEmptyBodyError(err) {
 		log.Error().Msg(err.Error())
@@ -42,38 +48,24 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	id := nfo.Metadata.UID
-	r.ttlCache.Set(id, nfo, time.Minute*10)
-	log.Info().Str("id", id).Msg("Event received")
+	key := nfo.FirstTimestamp.Format("20060102150405.00")
+	if val, ok := labels.CompositionID(&nfo); ok {
+		key = path.Join(key, val)
+	}
+	key = path.Join(key, string(nfo.UID))
+
+	log.Info().Str("key", key).Msg("Event received")
+
+	if err := r.storeClient.Set(key, &nfo); err != nil {
+		log.Error().Msg(err.Error())
+		http.Error(wri, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	r.ttlCache.Set(key, nfo, time.Minute*2)
+	log.Info().Str("key", key).Msg("Event stored")
 
 	wri.WriteHeader(http.StatusOK)
 	wri.Header().Set("Content-Type", "text/plain")
-	wri.Write([]byte(id))
-
-}
-
-type InvolvedObject struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Name       string `json:"name"`
-	Namespace  string `json:"namespace"`
-	UID        string `json:"uid"`
-}
-
-type Metadata struct {
-	CreationTimestamp time.Time `json:"creationTimestamp"`
-	Name              string    `json:"name"`
-	Namespace         string    `json:"namespace"`
-	UID               string    `json:"uid"`
-}
-
-type EventInfo struct {
-	Type           string         `json:"type"`
-	Reason         string         `json:"reason"`
-	DeploymentId   string         `json:"deploymentId"`
-	Time           int64          `json:"time"`
-	Message        string         `json:"message"`
-	Source         string         `json:"source"`
-	InvolvedObject InvolvedObject `json:"involvedObject"`
-	Metadata       Metadata       `json:"metadata"`
+	wri.Write([]byte(key))
 }

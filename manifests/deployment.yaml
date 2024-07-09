@@ -18,14 +18,22 @@ spec:
         app: "eventsse"
     spec:
       serviceAccountName: eventsse
+      volumes:
+        - emptyDir: {}
+          name: tmp-dir
       containers:
+      - name: etcd
+        image: gcr.io/etcd-development/etcd:v3.5.12
       - name: eventsse
         image: kind.local/eventsse:latest
         imagePullPolicy: Never
         args:
+        - --etcd-servers=http://localhost:2379
         - --dump-env=true
         - --debug=true
-        - --cors=true
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-dir
         ports:
         - containerPort: 8181
         securityContext:

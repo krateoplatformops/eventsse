@@ -7,16 +7,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/krateoplatformops/eventsse/internal/cache"
 	"github.com/krateoplatformops/eventsse/internal/env"
+	"github.com/krateoplatformops/eventsse/internal/handlers/getter"
 	"github.com/krateoplatformops/eventsse/internal/handlers/health"
 	"github.com/krateoplatformops/eventsse/internal/handlers/publisher"
 	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
+	"github.com/krateoplatformops/eventsse/internal/store"
 	"github.com/rs/zerolog"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -26,12 +30,9 @@ const (
 func main() {
 	debugOn := flag.Bool("debug", env.Bool("EVENTSSE_DEBUG", true), "dump verbose output")
 	dumpEnv := flag.Bool("dump-env", env.Bool("EVENTSSE_DUMP_ENV", false), "dump environment variables")
-	corsOn := flag.Bool("cors", env.Bool("EVENTSSE_CORS", true), "enable or disable CORS")
 	port := flag.Int("port", env.Int("EVENTSSE_PORT", 8181), "port to listen on")
-	queueMaxCapacity := flag.Int("queue-max-capacity",
-		env.Int("EVENTSSE_QUEUE_MAX_CAPACITY", 10), "notification queue buffer size")
-	queueWorkerThreads := flag.Int("queue-worker-threads",
-		env.Int("EVENTSSE_QUEUE_WORKER_THREADS", 50), "number of worker threads in the notification queue")
+	ttl := flag.Int("ttl", env.Int("EVENTSSE_TTL", 120), "stored event exipre time in seconds")
+	endpoints := flag.String("etcd-servers", env.String("EVENTSSE_ETCD_SERVERS", "localhost:2379"), "etcd endpoints")
 
 	flag.Usage = func() {
 		fmt.Fprintln(flag.CommandLine.Output(), "Flags:")
@@ -57,10 +58,9 @@ func main() {
 	if log.Debug().Enabled() {
 		evt := log.Debug().
 			Str("debug", fmt.Sprintf("%t", *debugOn)).
-			Str("cors", fmt.Sprintf("%t", *corsOn)).
 			Str("port", fmt.Sprintf("%d", *port)).
-			Str("queueMaxCapacity", fmt.Sprintf("%d", *queueMaxCapacity)).
-			Str("queueWorkerThreads", fmt.Sprintf("%d", *queueWorkerThreads))
+			Str("ttl", fmt.Sprintf("%d", *ttl)).
+			Str("etcd-endpoints", *endpoints)
 
 		if *dumpEnv {
 			evt = evt.Strs("env-vars", os.Environ())
@@ -69,18 +69,37 @@ func main() {
 		evt.Msg("configuration and env vars")
 	}
 
-	myTTLCache := cache.NewTTL[string, subscriber.EventInfo]()
+	ttlCache := cache.NewTTL[string, corev1.Event]()
 	defer func() {
-		myTTLCache.Clear()
+		ttlCache.Clear()
 	}()
+
+	sto, err := store.NewClient(store.Options{
+		Endpoints: strings.Split(*endpoints, ","),
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not create ETCD client")
+	}
+	defer sto.Close()
+
+	if *ttl > 0 {
+		sto.SetTTL(*ttl)
+	}
 
 	mux := http.NewServeMux()
 
 	healthy := int32(0)
 
 	mux.Handle("GET /health", health.Check(&healthy, serviceName))
-	mux.Handle("POST /handle", subscriber.Handle(myTTLCache))
-	mux.Handle("GET /events", publisher.SSE(myTTLCache))
+	mux.Handle("POST /handle", subscriber.Handle(subscriber.HandleOptions{
+		TTLCache:    ttlCache,
+		StoreClient: sto,
+	}))
+	mux.Handle("GET /notifications", publisher.SSE(ttlCache))
+
+	mux.Handle("GET /events/{date}", getter.Events(sto))
+	mux.Handle("GET /events/{date}/{composition}", getter.Events(sto))
+	mux.Handle("GET /events/{date}/{composition}/{event}", getter.Events(sto))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *port),

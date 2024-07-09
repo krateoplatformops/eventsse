@@ -7,11 +7,11 @@ import (
 	"os"
 
 	"github.com/krateoplatformops/eventsse/internal/cache"
-	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
 	"github.com/rs/zerolog"
+	corev1 "k8s.io/api/core/v1"
 )
 
-func SSE(ttlCache *cache.TTLCache[string, subscriber.EventInfo]) http.Handler {
+func SSE(ttlCache *cache.TTLCache[string, corev1.Event]) http.Handler {
 	return &handler{
 		ttlCache: ttlCache,
 	}
@@ -20,7 +20,7 @@ func SSE(ttlCache *cache.TTLCache[string, subscriber.EventInfo]) http.Handler {
 var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	ttlCache *cache.TTLCache[string, subscriber.EventInfo]
+	ttlCache *cache.TTLCache[string, corev1.Event]
 }
 
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
@@ -54,30 +54,28 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		f.Flush()
 		return
 	default:
-		//for {
 		for _, k := range r.ttlCache.Keys() {
 			obj, ok := r.ttlCache.Get(k)
 			if !ok {
-				log.Warn().Str("id", k).Msg("Event not found in cache, maybe expired?")
+				log.Warn().Str("key", k).Msg("Event not found in cache, maybe expired?")
 				continue
 			}
 
 			dat, err := json.Marshal(&obj)
 			if err != nil {
-				log.Error().Str("id", k).Msg("Encoding Event as JSON string")
+				log.Error().Str("key", k).Msg("Encoding Event as JSON string")
 				continue
 			}
 
-			log.Info().Str("id", k).Msg("Sending SSE")
+			log.Info().Str("key", k).Msg("Sending SSE")
 
 			fmt.Fprintln(wri, "event: krateo")
-			//fmt.Fprintf(wri, "id: %s\n", k)
+			fmt.Fprintf(wri, "id: %s\n", k)
 			fmt.Fprintf(wri, "data: %s\n\n", string(dat))
 			f.Flush()
 
 			r.ttlCache.Remove(k)
-			log.Info().Str("id", k).Msg("SSE Done")
+			log.Info().Str("key", k).Msg("SSE Done")
 		}
-		//}
 	}
 }

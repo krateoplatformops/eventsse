@@ -4,22 +4,34 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"path"
+	"strconv"
 
 	"github.com/krateoplatformops/eventsse/internal/store"
 	"github.com/rs/zerolog"
 )
 
-func Events(storage *store.Client) http.Handler {
-	return &handler{
-		storage: storage,
+const (
+	defaultLimit = 500
+)
+
+func Events(storage *store.Client, limit int) http.Handler {
+	h := &handler{
+		storage:  storage,
+		maxLimit: limit,
 	}
+
+	if h.maxLimit < 0 || h.maxLimit > defaultLimit {
+		h.maxLimit = defaultLimit
+	}
+
+	return h
 }
 
 var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	storage *store.Client
+	storage  *store.Client
+	maxLimit int
 }
 
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
@@ -28,28 +40,45 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		Timestamp().
 		Logger()
 
-	key := req.PathValue("date")
-	if val := req.PathValue("composition"); len(val) > 0 {
-		key = path.Join(key, val)
+	key := ""
+	if v := req.PathValue("composition"); len(v) > 0 {
+		key = v
 	}
-	if val := req.PathValue("event"); len(val) > 0 {
-		key = path.Join(key, val)
-	}
-	log.Info().Str("key", key).Msg("request received")
 
-	all, ok, err := r.storage.Get(key)
+	limit := r.maxLimit
+	if v := req.URL.Query().Get("limit"); len(v) > 0 {
+		x, err := strconv.Atoi(v)
+		if err == nil {
+			limit = x
+		}
+	}
+
+	max := min(r.maxLimit, defaultLimit)
+	if limit < 0 || limit > max {
+		limit = max
+	}
+
+	log.Info().
+		Int("limit", limit).
+		Str("key", key).Msg("request received")
+
+	all, ok, err := r.storage.Get(key, limit)
 	if err != nil {
 		log.Error().Msg(err.Error())
 		http.Error(wri, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if !ok {
-		log.Info().Str("key", key).Msg("no event found")
+		log.Info().
+			Int("limit", limit).
+			Str("key", key).Msg("no event found")
 		wri.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	log.Info().Str("key", key).Msgf("[%d] events found", len(all))
+	log.Info().
+		Int("limit", limit).
+		Str("key", key).Msgf("[%d] events found", len(all))
 
 	wri.Header().Set("Content-Type", "application/json")
 	wri.WriteHeader(http.StatusOK)
@@ -58,4 +87,11 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		http.Error(wri, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+	return a
 }

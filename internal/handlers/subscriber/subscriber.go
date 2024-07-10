@@ -48,7 +48,7 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	key := nfo.FirstTimestamp.Format("20060102150405.00")
+	key := nfo.FirstTimestamp.Format("2006010215")
 	if val, ok := labels.CompositionID(&nfo); ok {
 		key = path.Join(key, val)
 	}

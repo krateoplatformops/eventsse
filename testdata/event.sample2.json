@@ -2,20 +2,21 @@
     "apiVersion": "v1",
     "kind": "Event",
     "metadata": {
-      "name": "fake-event-1",
+      "name": "fake-event-2",
       "namespace": "demo-system",
       "labels": {
-        "krateo.io/composition-id": "ABCDE12345"
-      }
+        "krateo.io/composition-id": "PQRST67890"
+      },
+      "uid": "383b7f73-bdfe-4817-a06d-111111111111"
     },
     "type": "Warning",
     "firstTimestamp": "2024-07-05T07:33:07Z",
     "lastTimestamp": "2024-07-05T07:33:09Z",
-    "message": "Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit...",
+    "message": "L'acqua è poca ossia scarseggia...e la papera non galleggia!",
     "involvedObject": {
       "apiVersion": "v1",
       "kind": "Service",
-      "name": "fake-service-1",
+      "name": "fake-service-2",
       "namespace": "demo-system",
       "uid": "383b7f73-bdfe-4817-a06d-b38e6e655689"
     },

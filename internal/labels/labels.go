@@ -19,12 +19,15 @@ func WasPatchedByKrateo(obj *corev1.Event) bool {
 	return ok
 }
 
-func CompositionID(obj *corev1.Event) (string, bool) {
+func CompositionID(obj *corev1.Event) string {
 	labels := obj.GetLabels()
 	if len(labels) == 0 {
-		return "", false
+		return ""
 	}
 
-	val, ok := labels[keyCompositionID]
-	return val, ok
+	if val, ok := labels[keyCompositionID]; ok {
+		return val
+	}
+
+	return ""
 }

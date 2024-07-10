@@ -95,8 +95,8 @@ func main() {
 
 	mux.Handle("GET /health", health.Check(&healthy, serviceName))
 	mux.Handle("POST /handle", subscriber.Handle(subscriber.HandleOptions{
-		TTLCache:    ttlCache,
-		StoreClient: sto,
+		TTLCache: ttlCache,
+		Store:    sto,
 	}))
 	mux.Handle("GET /notifications", publisher.SSE(ttlCache))
 

@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/krateoplatformops/eventsse/internal/cache"
+	"github.com/krateoplatformops/eventsse/internal/labels"
 	"github.com/rs/zerolog"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -38,6 +39,7 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	}
 
 	wri.Header().Set("Access-Control-Allow-Origin", "*")
+	wri.Header().Set("Access-Control-Allow-Methods", "GET,OPTIONS")
 	wri.Header().Set("Access-Control-Expose-Headers", "Authorization,Content-Type")
 	wri.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type")
 	wri.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -72,6 +74,14 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 			fmt.Fprintln(wri, "event: krateo")
 			fmt.Fprintf(wri, "id: %s\n", k)
 			fmt.Fprintf(wri, "data: %s\n\n", string(dat))
+
+			cid := labels.CompositionID(&obj)
+			if len(cid) > 0 {
+				fmt.Fprintf(wri, "event: %s\n", cid)
+				fmt.Fprintf(wri, "id: %s\n", k)
+				fmt.Fprintf(wri, "data: %s\n\n", string(dat))
+			}
+
 			f.Flush()
 
 			r.ttlCache.Remove(k)

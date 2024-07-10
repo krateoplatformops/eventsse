@@ -40,10 +40,7 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		Timestamp().
 		Logger()
 
-	key := ""
-	if v := req.PathValue("composition"); len(v) > 0 {
-		key = v
-	}
+	key := r.storage.PrepareKey("", req.PathValue("composition"))
 
 	limit := r.maxLimit
 	if v := req.URL.Query().Get("limit"); len(v) > 0 {
@@ -62,7 +59,9 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		Int("limit", limit).
 		Str("key", key).Msg("request received")
 
-	all, ok, err := r.storage.Get(key, limit)
+	all, ok, err := r.storage.Get(key, store.GetOptions{
+		Limit: limit,
+	})
 	if err != nil {
 		log.Error().Msg(err.Error())
 		http.Error(wri, err.Error(), http.StatusInternalServerError)

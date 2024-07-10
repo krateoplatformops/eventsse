@@ -3,7 +3,6 @@ package subscriber
 import (
 	"net/http"
 	"os"
-	"path"
 	"time"
 
 	"github.com/krateoplatformops/eventsse/internal/cache"
@@ -16,22 +15,22 @@ import (
 )
 
 type HandleOptions struct {
-	TTLCache    *cache.TTLCache[string, corev1.Event]
-	StoreClient *store.Client
+	TTLCache *cache.TTLCache[string, corev1.Event]
+	Store    *store.Client
 }
 
 func Handle(opts HandleOptions) http.Handler {
 	return &handler{
-		ttlCache:    opts.TTLCache,
-		storeClient: opts.StoreClient,
+		ttlCache: opts.TTLCache,
+		store:    opts.Store,
 	}
 }
 
 var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	ttlCache    *cache.TTLCache[string, corev1.Event]
-	storeClient *store.Client
+	ttlCache *cache.TTLCache[string, corev1.Event]
+	store    *store.Client
 }
 
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
@@ -48,15 +47,10 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	key := nfo.FirstTimestamp.Format("2006010215")
-	if val, ok := labels.CompositionID(&nfo); ok {
-		key = path.Join(key, val)
-	}
-	key = path.Join(key, string(nfo.UID))
-
+	key := r.store.PrepareKey(string(nfo.UID), labels.CompositionID(&nfo))
 	log.Info().Str("key", key).Msg("Event received")
 
-	if err := r.storeClient.Set(key, &nfo); err != nil {
+	if err := r.store.Set(key, &nfo); err != nil {
 		log.Error().Msg(err.Error())
 		http.Error(wri, err.Error(), http.StatusInternalServerError)
 		return

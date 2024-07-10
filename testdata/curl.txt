@@ -1,6 +1,6 @@
 
-curl -v "http://127.0.0.1:30081/events/202407
-curl -v "http://127.0.0.1:30081/events/20240705073307.00/ABCDE12345"
+curl -v "http://127.0.0.1:30081/events
+curl -v "http://127.0.0.1:30081/events/ABCDE12345"
 
 curl -H "Content-Type: application/json" \
     --data-binary @testdata/event.sample.json \

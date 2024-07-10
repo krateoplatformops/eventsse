@@ -58,10 +58,13 @@ func (c *Client) Set(k string, v *corev1.Event) error {
 }
 
 // Get retrieves the stored value for the given key.
-func (c *Client) Get(k string) (data []corev1.Event, found bool, err error) {
+func (c *Client) Get(k string, limit int) (data []corev1.Event, found bool, err error) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), c.timeOut)
 	defer cancel()
-	getRes, err := c.c.Get(ctxWithTimeout, path.Join(basePath, k), clientv3.WithPrefix())
+	getRes, err := c.c.Get(ctxWithTimeout, path.Join(basePath, k),
+		clientv3.WithLimit(int64(limit)),
+		clientv3.WithSort(clientv3.SortByKey, clientv3.SortDescend),
+		clientv3.WithPrefix())
 	if err != nil {
 		return data, false, err
 	}

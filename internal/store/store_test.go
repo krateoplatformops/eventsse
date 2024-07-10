@@ -48,7 +48,7 @@ func TestPut(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	all, _, err := sto.Get(key)
+	all, _, err := sto.Get(key, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

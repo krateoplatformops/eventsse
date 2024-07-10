@@ -32,7 +32,7 @@ func main() {
 	dumpEnv := flag.Bool("dump-env", env.Bool("EVENTSSE_DUMP_ENV", false), "dump environment variables")
 	port := flag.Int("port", env.Int("EVENTSSE_PORT", 8181), "port to listen on")
 	ttl := flag.Int("ttl", env.Int("EVENTSSE_TTL", 120), "stored event exipre time in seconds")
-	limit := flag.Int("ttl", env.Int("EVENTSSE_GET_LIMIT", 500),
+	limit := flag.Int("limit", env.Int("EVENTSSE_GET_LIMIT", 500),
 		"limits the number of results to return from 'Get' request")
 	endpoints := flag.String("etcd-servers", env.String("EVENTSSE_ETCD_SERVERS", "localhost:2379"), "etcd endpoints")
 

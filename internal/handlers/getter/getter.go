@@ -79,8 +79,14 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		Int("limit", limit).
 		Str("key", key).Msgf("[%d] events found", len(all))
 
+	wri.Header().Set("Access-Control-Allow-Origin", "*")
+	wri.Header().Set("Access-Control-Allow-Methods", "GET,OPTIONS")
+	wri.Header().Set("Access-Control-Expose-Headers", "Authorization,Content-Type")
+	wri.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type")
+	wri.Header().Set("Access-Control-Allow-Credentials", "true")
 	wri.Header().Set("Content-Type", "application/json")
 	wri.WriteHeader(http.StatusOK)
+
 	if err := json.NewEncoder(wri).Encode(all); err != nil {
 		log.Error().Msg(err.Error())
 		http.Error(wri, err.Error(), http.StatusInternalServerError)

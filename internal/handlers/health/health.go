@@ -20,6 +20,18 @@ type handler struct {
 	serviceName string
 }
 
+// @title EventSSE API
+// @version 1.0
+// @description This the Krateo EventSSE server.
+// @BasePath /
+
+// Health godoc
+// @Summary Liveness Endpoint
+// @Description Health Check
+// @ID health
+// @Produce  json
+// @Success 200 {object} map[string]any
+// @Router /health [get]
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		wri.Header().Set("Allow", "GET")

@@ -21,6 +21,9 @@ import (
 	"github.com/krateoplatformops/eventsse/internal/store"
 	"github.com/rs/zerolog"
 	corev1 "k8s.io/api/core/v1"
+
+	_ "github.com/krateoplatformops/eventsse/docs"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 const (
@@ -99,9 +102,9 @@ func main() {
 		Store:    sto,
 	}))
 	mux.Handle("GET /notifications", publisher.SSE(ttlCache))
-
 	mux.Handle("GET /events", getter.Events(sto, *limit))
 	mux.Handle("GET /events/{composition}", getter.Events(sto, *limit))
+	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *port),

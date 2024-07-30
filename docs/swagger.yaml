@@ -1,0 +1,57 @@
+info:
+  contact: {}
+paths:
+  /events:
+    get:
+      description: list composition events
+      operationId: events
+      parameters:
+      - description: Composition Identifier
+        in: path
+        name: composition
+        required: true
+        type: string
+      - description: Max number of events
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: List all events related to a composition
+  /health:
+    get:
+      description: Health Check
+      operationId: health
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Liveness Endpoint
+  /notifications:
+    get:
+      description: Get available events notifications
+      operationId: notifications
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: SSE Endpoint
+swagger: "2.0"

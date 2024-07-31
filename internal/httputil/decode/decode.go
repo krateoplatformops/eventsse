@@ -61,9 +61,9 @@ func JSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 			msg := "Request body is empty"
 			return &MalformedRequest{Status: http.StatusNoContent, Msg: msg}
 
-		case err.Error() == "http: request body too large":
-			msg := "Request body must not be larger than 1MB"
-			return &MalformedRequest{Status: http.StatusRequestEntityTooLarge, Msg: msg}
+		// case err.Error() == "http: request body too large":
+		// 	msg := "Request body must not be larger than 1MB"
+		// 	return &MalformedRequest{Status: http.StatusRequestEntityTooLarge, Msg: msg}
 
 		default:
 			return err

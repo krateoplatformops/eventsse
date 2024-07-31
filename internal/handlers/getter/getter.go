@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	defaultLimit = 50
+	defaultLimit = 100
 )
 
-func Events(storage *store.Client, limit int) http.Handler {
+func Events(storage store.Store, limit int) http.Handler {
 	h := &handler{
 		storage:  storage,
 		maxLimit: limit,
@@ -31,7 +31,7 @@ func Events(storage *store.Client, limit int) http.Handler {
 var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	storage  *store.Client
+	storage  store.Store
 	maxLimit int
 }
 
@@ -47,7 +47,7 @@ type handler struct {
 // @Produce  json
 // @Param composition path string false "Composition Identifier"
 // @Param limit query int false "Max number of events"
-// @Success 200 {array} map[string]any
+// @Success 200 {array} types.Event
 // @Router /events [get]
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	log := zerolog.New(os.Stdout).With().
@@ -55,7 +55,11 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		Timestamp().
 		Logger()
 
-	key := r.storage.PrepareKey("", req.PathValue("composition"))
+	comp := req.PathValue("composition")
+	if len(comp) == 0 {
+		comp = req.URL.Query().Get("composition")
+	}
+	key := r.storage.PrepareKey("", comp)
 
 	limit := r.maxLimit
 	if v := req.URL.Query().Get("limit"); len(v) > 0 {

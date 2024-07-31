@@ -1,3 +1,233 @@
+definitions:
+  types.Event:
+    properties:
+      action:
+        description: |-
+          What action was taken/failed regarding to the Regarding object.
+          +optional
+        type: string
+      apiVersion:
+        description: |-
+          APIVersion defines the versioned schema of this representation of an object.
+          Servers should convert recognized schemas to the latest internal value, and
+          may reject unrecognized values.
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+          +optional
+        type: string
+      count:
+        description: |-
+          The number of times this event has occurred.
+          +optional
+        type: integer
+      firstTimestamp:
+        description: |-
+          The time at which the event was first recorded. (Time of server receipt is in TypeMeta.)
+          +optional
+        type: string
+      involvedObject:
+        allOf:
+        - $ref: '#/definitions/types.ObjectReference'
+        description: The object that this event is about.
+      kind:
+        description: |-
+          Kind is a string value representing the REST resource this object represents.
+          Servers may infer this from the endpoint the client submits requests to.
+          Cannot be updated.
+          In CamelCase.
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+          +optional
+        type: string
+      lastTimestamp:
+        description: |-
+          The time at which the most recent occurrence of this event was recorded.
+          +optional
+        type: string
+      message:
+        description: |-
+          A human-readable description of the status of this operation.
+          TODO: decide on maximum length.
+          +optional
+        type: string
+      metadata:
+        allOf:
+        - $ref: '#/definitions/types.ObjectMeta'
+        description: |-
+          Standard object's metadata.
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+      reason:
+        description: |-
+          This should be a short, machine understandable string that gives the reason
+          for the transition into the object's current status.
+          TODO: provide exact specification for format.
+          +optional
+        type: string
+      related:
+        allOf:
+        - $ref: '#/definitions/types.ObjectReference'
+        description: |-
+          Optional secondary object for more complex actions.
+          +optional
+      reportingComponent:
+        description: |-
+          Name of the controller that emitted this Event, e.g. `kubernetes.io/kubelet`.
+          +optional
+        type: string
+      reportingInstance:
+        description: |-
+          ID of the controller instance, e.g. `kubelet-xyzf`.
+          +optional
+        type: string
+      source:
+        allOf:
+        - $ref: '#/definitions/types.EventSource'
+        description: |-
+          The component reporting this event. Should be a short machine understandable string.
+          +optional
+      type:
+        description: |-
+          Type of this event (Normal, Warning), new types could be added in the future
+          +optional
+        type: string
+    type: object
+  types.EventSource:
+    properties:
+      component:
+        description: |-
+          Component from which the event is generated.
+          +optional
+        type: string
+      host:
+        description: |-
+          Node name on which the event is generated.
+          +optional
+        type: string
+    type: object
+  types.ObjectMeta:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        description: |-
+          Annotations is an unstructured key value map stored with a resource that may be
+          set by external tools to store and retrieve arbitrary metadata. They are not
+          queryable and should be preserved when modifying objects.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+          +optional
+        type: object
+      creationTimestamp:
+        description: |-
+          CreationTimestamp is a timestamp representing the server time when this object was
+          created. It is not guaranteed to be set in happens-before order across separate operations.
+          Clients may not set this value. It is represented in RFC3339 form and is in UTC.
+
+          Populated by the system.
+          Read-only.
+          Null for lists.
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+          +optional
+        type: string
+      generation:
+        description: |-
+          A sequence number representing a specific generation of the desired state.
+          Populated by the system. Read-only.
+          +optional
+        type: integer
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Map of string keys and values that can be used to organize and categorize
+          (scope and select) objects. May match selectors of replication controllers
+          and services.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
+          +optional
+        type: object
+      name:
+        description: |-
+          Name must be unique within a namespace. Is required when creating resources, although
+          some resources may allow a client to request the generation of an appropriate name
+          automatically. Name is primarily intended for creation idempotence and configuration
+          definition.
+          Cannot be updated.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names
+          +optional
+        type: string
+      namespace:
+        description: |-
+          Namespace defines the space within which each name must be unique. An empty namespace is
+          equivalent to the "default" namespace, but "default" is the canonical representation.
+          Not all objects are required to be scoped to a namespace - the value of this field for
+          those objects will be empty.
+
+          Must be a DNS_LABEL.
+          Cannot be updated.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces
+          +optional
+        type: string
+      resourceVersion:
+        description: |-
+          An opaque value that represents the internal version of this object that can
+          be used by clients to determine when objects have changed. May be used for optimistic
+          concurrency, change detection, and the watch operation on a resource or set of resources.
+          Clients must treat these values as opaque and passed unmodified back to the server.
+          They may only be valid for a particular resource or set of resources.
+
+          Populated by the system.
+          Read-only.
+          Value must be treated as opaque by clients and .
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+          +optional
+        type: string
+      uid:
+        description: |-
+          UID is the unique in time and space value for this object. It is typically generated by
+          the server on successful creation of a resource and is not allowed to change on PUT
+          operations.
+
+          Populated by the system.
+          Read-only.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#uids
+          +optional
+        type: string
+    type: object
+  types.ObjectReference:
+    properties:
+      apiVersion:
+        description: |-
+          API version of the referent.
+          +optional
+        type: string
+      kind:
+        description: |-
+          Kind of the referent.
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+          +optional
+        type: string
+      name:
+        description: |-
+          Name of the referent.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+          +optional
+        type: string
+      namespace:
+        description: |-
+          Namespace of the referent.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+          +optional
+        type: string
+      resourceVersion:
+        description: |-
+          Specific resourceVersion to which this reference is made, if any.
+          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+          +optional
+        type: string
+      uid:
+        description: |-
+          UID of the referent.
+          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+          +optional
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -9,7 +239,6 @@ paths:
       - description: Composition Identifier
         in: path
         name: composition
-        required: true
         type: string
       - description: Max number of events
         in: query
@@ -22,8 +251,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/types.Event'
             type: array
       summary: List all events related to a composition
   /health:
@@ -50,8 +278,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/types.Event'
             type: array
       summary: SSE Endpoint
 swagger: "2.0"

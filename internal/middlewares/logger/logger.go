@@ -1,4 +1,4 @@
-package routes
+package logger
 
 import (
 	"net/http"

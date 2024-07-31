@@ -34,7 +34,7 @@ type handler struct {
 // @Description Get available events notifications
 // @ID notifications
 // @Produce  json
-// @Success 200 {array} map[string]any
+// @Success 200 {array} types.Event
 // @Router /notifications [get]
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	log := zerolog.New(os.Stdout).With().

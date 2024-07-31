@@ -16,7 +16,7 @@ import (
 
 type HandleOptions struct {
 	TTLCache *cache.TTLCache[string, corev1.Event]
-	Store    *store.Client
+	Store    store.Store
 }
 
 func Handle(opts HandleOptions) http.Handler {
@@ -30,7 +30,7 @@ var _ http.Handler = (*handler)(nil)
 
 type handler struct {
 	ttlCache *cache.TTLCache[string, corev1.Event]
-	store    *store.Client
+	store    store.Store
 }
 
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
@@ -41,9 +41,13 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 
 	var nfo corev1.Event
 	err := decode.JSONBody(wri, req, &nfo)
-	if err != nil && !decode.IsEmptyBodyError(err) {
+	if err != nil {
 		log.Error().Msg(err.Error())
-		http.Error(wri, err.Error(), http.StatusBadRequest)
+		if decode.IsEmptyBodyError(err) {
+			http.Error(wri, err.Error(), http.StatusNoContent)
+		} else {
+			http.Error(wri, err.Error(), http.StatusBadRequest)
+		}
 		return
 	}
 

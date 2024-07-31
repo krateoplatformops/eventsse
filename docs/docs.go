@@ -28,8 +28,7 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Composition Identifier",
                         "name": "composition",
-                        "in": "path",
-                        "required": true
+                        "in": "path"
                     },
                     {
                         "type": "integer",
@@ -44,8 +43,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/types.Event"
                             }
                         }
                     }
@@ -85,11 +83,178 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/types.Event"
                             }
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "types.Event": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "What action was taken/failed regarding to the Regarding object.\n+optional",
+                    "type": "string"
+                },
+                "apiVersion": {
+                    "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources\n+optional",
+                    "type": "string"
+                },
+                "count": {
+                    "description": "The number of times this event has occurred.\n+optional",
+                    "type": "integer"
+                },
+                "firstTimestamp": {
+                    "description": "The time at which the event was first recorded. (Time of server receipt is in TypeMeta.)\n+optional",
+                    "type": "string"
+                },
+                "involvedObject": {
+                    "description": "The object that this event is about.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.ObjectReference"
+                        }
+                    ]
+                },
+                "kind": {
+                    "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds\n+optional",
+                    "type": "string"
+                },
+                "lastTimestamp": {
+                    "description": "The time at which the most recent occurrence of this event was recorded.\n+optional",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "A human-readable description of the status of this operation.\nTODO: decide on maximum length.\n+optional",
+                    "type": "string"
+                },
+                "metadata": {
+                    "description": "Standard object's metadata.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.ObjectMeta"
+                        }
+                    ]
+                },
+                "reason": {
+                    "description": "This should be a short, machine understandable string that gives the reason\nfor the transition into the object's current status.\nTODO: provide exact specification for format.\n+optional",
+                    "type": "string"
+                },
+                "related": {
+                    "description": "Optional secondary object for more complex actions.\n+optional",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.ObjectReference"
+                        }
+                    ]
+                },
+                "reportingComponent": {
+                    "description": "Name of the controller that emitted this Event, e.g. ` + "`" + `kubernetes.io/kubelet` + "`" + `.\n+optional",
+                    "type": "string"
+                },
+                "reportingInstance": {
+                    "description": "ID of the controller instance, e.g. ` + "`" + `kubelet-xyzf` + "`" + `.\n+optional",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "The component reporting this event. Should be a short machine understandable string.\n+optional",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/types.EventSource"
+                        }
+                    ]
+                },
+                "type": {
+                    "description": "Type of this event (Normal, Warning), new types could be added in the future\n+optional",
+                    "type": "string"
+                }
+            }
+        },
+        "types.EventSource": {
+            "type": "object",
+            "properties": {
+                "component": {
+                    "description": "Component from which the event is generated.\n+optional",
+                    "type": "string"
+                },
+                "host": {
+                    "description": "Node name on which the event is generated.\n+optional",
+                    "type": "string"
+                }
+            }
+        },
+        "types.ObjectMeta": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Annotations is an unstructured key value map stored with a resource that may be\nset by external tools to store and retrieve arbitrary metadata. They are not\nqueryable and should be preserved when modifying objects.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations\n+optional",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "creationTimestamp": {
+                    "description": "CreationTimestamp is a timestamp representing the server time when this object was\ncreated. It is not guaranteed to be set in happens-before order across separate operations.\nClients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system.\nRead-only.\nNull for lists.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata\n+optional",
+                    "type": "string"
+                },
+                "generation": {
+                    "description": "A sequence number representing a specific generation of the desired state.\nPopulated by the system. Read-only.\n+optional",
+                    "type": "integer"
+                },
+                "labels": {
+                    "description": "Map of string keys and values that can be used to organize and categorize\n(scope and select) objects. May match selectors of replication controllers\nand services.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels\n+optional",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "description": "Name must be unique within a namespace. Is required when creating resources, although\nsome resources may allow a client to request the generation of an appropriate name\nautomatically. Name is primarily intended for creation idempotence and configuration\ndefinition.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names\n+optional",
+                    "type": "string"
+                },
+                "namespace": {
+                    "description": "Namespace defines the space within which each name must be unique. An empty namespace is\nequivalent to the \"default\" namespace, but \"default\" is the canonical representation.\nNot all objects are required to be scoped to a namespace - the value of this field for\nthose objects will be empty.\n\nMust be a DNS_LABEL.\nCannot be updated.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces\n+optional",
+                    "type": "string"
+                },
+                "resourceVersion": {
+                    "description": "An opaque value that represents the internal version of this object that can\nbe used by clients to determine when objects have changed. May be used for optimistic\nconcurrency, change detection, and the watch operation on a resource or set of resources.\nClients must treat these values as opaque and passed unmodified back to the server.\nThey may only be valid for a particular resource or set of resources.\n\nPopulated by the system.\nRead-only.\nValue must be treated as opaque by clients and .\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\n+optional",
+                    "type": "string"
+                },
+                "uid": {
+                    "description": "UID is the unique in time and space value for this object. It is typically generated by\nthe server on successful creation of a resource and is not allowed to change on PUT\noperations.\n\nPopulated by the system.\nRead-only.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#uids\n+optional",
+                    "type": "string"
+                }
+            }
+        },
+        "types.ObjectReference": {
+            "type": "object",
+            "properties": {
+                "apiVersion": {
+                    "description": "API version of the referent.\n+optional",
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "Kind of the referent.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds\n+optional",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name of the referent.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names\n+optional",
+                    "type": "string"
+                },
+                "namespace": {
+                    "description": "Namespace of the referent.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/\n+optional",
+                    "type": "string"
+                },
+                "resourceVersion": {
+                    "description": "Specific resourceVersion to which this reference is made, if any.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\n+optional",
+                    "type": "string"
+                },
+                "uid": {
+                    "description": "UID of the referent.\nMore info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids\n+optional",
+                    "type": "string"
                 }
             }
         }

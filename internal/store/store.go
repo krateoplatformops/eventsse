@@ -14,7 +14,33 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var defaultTimeout = 200 * time.Millisecond
+type TTLSetter interface {
+	SetTTL(ttl int)
+}
+
+type KeyPreparer interface {
+	PrepareKey(eventId, compositionId string) string
+}
+
+type Closer interface {
+	Close() error
+}
+
+var (
+	defaultTimeout             = 200 * time.Millisecond
+	_              TTLSetter   = (*Client)(nil)
+	_              KeyPreparer = (*Client)(nil)
+	_              Store       = (*Client)(nil)
+)
+
+type Store interface {
+	TTLSetter
+	KeyPreparer
+	Closer
+	Set(k string, v *corev1.Event) error
+	Get(k string, opts GetOptions) (data []corev1.Event, found bool, err error)
+	Delete(k string) error
+}
 
 // Client is a Store implementation for etcd.
 type Client struct {
@@ -25,10 +51,6 @@ type Client struct {
 
 func (c *Client) SetTTL(ttl int) {
 	c.ttl = ttl
-}
-
-func (c *Client) TTL() int {
-	return c.ttl
 }
 
 func (c *Client) PrepareKey(eventId, compositionId string) string {
@@ -141,7 +163,7 @@ var DefaultOptions = Options{
 // NewClient creates a new etcd client.
 //
 // You must call the Close() method on the client when you're done working with it.
-func NewClient(options Options) (*Client, error) {
+func NewClient(options Options) (Store, error) {
 	result := &Client{}
 
 	// Set default values

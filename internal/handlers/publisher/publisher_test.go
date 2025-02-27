@@ -19,6 +19,14 @@ func TestServeHTTP(t *testing.T) {
 id: event1
 data: {"metadata":{"name":"event1","namespace":"demo-system","creationTimestamp":null},"involvedObject":{},"source":{},"firstTimestamp":null,"lastTimestamp":null,"eventTime":null,"reportingComponent":"","reportingInstance":""}
 
+event: krateo
+id: event2
+data: {"metadata":{"name":"event2","namespace":"demo-system","creationTimestamp":null,"labels":{"krateo.io/composition-id":"123456"}},"involvedObject":{"namespace":"my-space-pls","name":"whatever"},"reason":"Testami","message":"This is not happening","source":{},"firstTimestamp":null,"lastTimestamp":null,"eventTime":null,"reportingComponent":"","reportingInstance":""}
+
+event: 123456
+id: event2
+data: {"metadata":{"name":"event2","namespace":"demo-system","creationTimestamp":null,"labels":{"krateo.io/composition-id":"123456"}},"involvedObject":{"namespace":"my-space-pls","name":"whatever"},"reason":"Testami","message":"This is not happening","source":{},"firstTimestamp":null,"lastTimestamp":null,"eventTime":null,"reportingComponent":"","reportingInstance":""}
+
 `
 
 		ttlCache := cache.NewTTL[string, corev1.Event]()
@@ -28,6 +36,22 @@ data: {"metadata":{"name":"event1","namespace":"demo-system","creationTimestamp"
 		ttlCache.Set("event1", corev1.Event{
 			ObjectMeta: v1.ObjectMeta{
 				Name: "event1", Namespace: "demo-system",
+			},
+		}, time.Second*2)
+
+		ttlCache.Set("event2", corev1.Event{
+			ObjectMeta: v1.ObjectMeta{
+				Name: "event2", Namespace: "demo-system",
+				Labels: map[string]string{
+					"krateo.io/composition-id": "123456",
+				},
+			},
+
+			Reason:  "Testami",
+			Message: "This is not happening",
+			InvolvedObject: corev1.ObjectReference{
+				Namespace: "my-space-pls",
+				Name:      "whatever",
 			},
 		}, time.Second*2)
 
@@ -50,7 +74,7 @@ data: {"metadata":{"name":"event1","namespace":"demo-system","creationTimestamp"
 			t.Errorf("expected Content-Type 'text/event-stream', got %v", contentType)
 		}
 
-		got := string(rr.Body.Bytes())
+		got := rr.Body.String()
 		if !reflect.DeepEqual(got, exp) {
 			t.Errorf("expected response body %v, got %v", exp, got)
 		}

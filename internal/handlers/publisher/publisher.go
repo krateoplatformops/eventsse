@@ -81,14 +81,30 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 				continue
 			}
 
-			log.Info().Str("key", k).Msg("Sending SSE")
+			cid := labels.CompositionID(&obj)
+			belongsToComposition := len(cid) > 0
+
+			zle := log.Debug().
+				Str("id", k).
+				Str("reason", obj.Reason).
+				Str("message", obj.Message).
+				Str("involvedObject.Name", obj.InvolvedObject.Name).
+				Str("involvedObject.Namespace", obj.InvolvedObject.Namespace)
+
+			if belongsToComposition {
+				zle.Str("event", cid)
+			} else {
+				zle.Str("event", "krateo")
+			}
+
+			zle.Msg("Sending SSE")
+			zle = nil
 
 			fmt.Fprintln(wri, "event: krateo")
 			fmt.Fprintf(wri, "id: %s\n", k)
 			fmt.Fprintf(wri, "data: %s\n\n", string(dat))
 
-			cid := labels.CompositionID(&obj)
-			if len(cid) > 0 {
+			if belongsToComposition {
 				fmt.Fprintf(wri, "event: %s\n", cid)
 				fmt.Fprintf(wri, "id: %s\n", k)
 				fmt.Fprintf(wri, "data: %s\n\n", string(dat))

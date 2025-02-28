@@ -100,6 +100,56 @@ func TestPut(t *testing.T) {
 	}
 }
 
+func TestKeys(t *testing.T) {
+	var sto Store
+	if len(os.Getenv("INTEGRATION")) > 0 {
+		//t.Skip("skipping integration tests: set INTEGRATION environment variable")
+		var err error
+		sto, err = NewClient(DefaultOptions)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		sto = &MockStore{
+			ttl:  time.Second * 10,
+			data: cache.NewTTL[string, corev1.Event](),
+		}
+	}
+	defer sto.Close()
+
+	files := []string{
+		"../../testdata/event.sample1.json",
+		"../../testdata/event.sample2.json",
+	}
+
+	for _, x := range files {
+		fin, err := os.Open(x)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer fin.Close()
+
+		var nfo corev1.Event
+		if err := json.NewDecoder(fin).Decode(&nfo); err != nil {
+			t.Fatal(err)
+		}
+
+		key := sto.PrepareKey(string(nfo.UID), labels.CompositionID(&nfo))
+		t.Logf("key: %s", key)
+
+		err = sto.Set(key, &nfo)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	keys, err := sto.Keys(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%s\n", keys)
+}
+
 var _ Store = (*MockStore)(nil)
 
 // MockStore è un mock del client store per testare l'handler
@@ -123,6 +173,10 @@ func (m *MockStore) Get(key string, opts GetOptions) (data []corev1.Event, found
 		return nil, false, nil
 	}
 	return []corev1.Event{obj}, true, nil
+}
+
+func (m *MockStore) Keys(l int) ([]string, error) {
+	return m.data.Keys(), nil
 }
 
 func (m *MockStore) Delete(key string) error {

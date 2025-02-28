@@ -16,6 +16,7 @@ import (
 	"github.com/krateoplatformops/eventsse/internal/env"
 	"github.com/krateoplatformops/eventsse/internal/handlers/getter"
 	"github.com/krateoplatformops/eventsse/internal/handlers/health"
+	"github.com/krateoplatformops/eventsse/internal/handlers/pub"
 	"github.com/krateoplatformops/eventsse/internal/handlers/publisher"
 	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
 	"github.com/krateoplatformops/eventsse/internal/store"
@@ -34,8 +35,8 @@ func main() {
 	debugOn := flag.Bool("debug", env.Bool("EVENTSSE_DEBUG", true), "dump verbose output")
 	dumpEnv := flag.Bool("dump-env", env.Bool("EVENTSSE_DUMP_ENV", false), "dump environment variables")
 	port := flag.Int("port", env.Int("EVENTSSE_PORT", 8181), "port to listen on")
-	ttl := flag.Int("ttl", env.Int("EVENTSSE_TTL", 120), "stored event exipre time in seconds")
-	limit := flag.Int("limit", env.Int("EVENTSSE_GET_LIMIT", 100),
+	ttlSecs := flag.Int("ttl", env.Int("EVENTSSE_TTL", 120), "stored event exipre time in seconds")
+	limit := flag.Int("limit", env.Int("EVENTSSE_GET_LIMIT", 50),
 		"limits the number of results to return from 'Get' request")
 	endpoints := flag.String("etcd-servers", env.String("EVENTSSE_ETCD_SERVERS", "localhost:2379"), "etcd endpoints")
 
@@ -45,6 +46,10 @@ func main() {
 	}
 
 	flag.Parse()
+
+	if *limit <= 0 {
+		*limit = 50
+	}
 
 	// Initialize the logger
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
@@ -64,7 +69,7 @@ func main() {
 		evt := log.Debug().
 			Str("debug", fmt.Sprintf("%t", *debugOn)).
 			Str("port", fmt.Sprintf("%d", *port)).
-			Str("ttl", fmt.Sprintf("%d", *ttl)).
+			Str("ttl", fmt.Sprintf("%d", *ttlSecs)).
 			Str("limit", fmt.Sprintf("%d", *limit)).
 			Str("etcd-endpoints", *endpoints)
 
@@ -88,9 +93,10 @@ func main() {
 	}
 	defer sto.Close()
 
-	if *ttl > 0 {
-		sto.SetTTL(*ttl)
+	if *ttlSecs <= 0 {
+		*ttlSecs = 180
 	}
+	sto.SetTTL(*ttlSecs)
 
 	mux := http.NewServeMux()
 
@@ -100,7 +106,9 @@ func main() {
 	mux.Handle("POST /handle", subscriber.Handle(subscriber.HandleOptions{
 		TTLCache: ttlCache,
 		Store:    sto,
+		TTL:      time.Duration(*ttlSecs) * time.Second,
 	}))
+	mux.Handle("GET /pub", pub.SSEx(sto, *limit))
 	mux.Handle("GET /notifications", publisher.SSE(ttlCache))
 	mux.Handle("GET /events", getter.Events(sto, *limit))
 	mux.Handle("GET /events/{composition}", getter.Events(sto, *limit))

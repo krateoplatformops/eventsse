@@ -17,12 +17,14 @@ import (
 type HandleOptions struct {
 	TTLCache *cache.TTLCache[string, corev1.Event]
 	Store    store.Store
+	TTL      time.Duration
 }
 
 func Handle(opts HandleOptions) http.Handler {
 	return &handler{
 		ttlCache: opts.TTLCache,
 		store:    opts.Store,
+		ttl:      opts.TTL,
 	}
 }
 
@@ -31,6 +33,7 @@ var _ http.Handler = (*handler)(nil)
 type handler struct {
 	ttlCache *cache.TTLCache[string, corev1.Event]
 	store    store.Store
+	ttl      time.Duration
 }
 
 func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
@@ -60,7 +63,7 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r.ttlCache.Set(key, nfo, time.Minute*2)
+	r.ttlCache.Set(key, nfo, r.ttl)
 	log.Info().Str("key", key).Msg("Event stored")
 
 	wri.WriteHeader(http.StatusOK)

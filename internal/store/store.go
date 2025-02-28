@@ -40,6 +40,7 @@ type Store interface {
 	Set(k string, v *corev1.Event) error
 	Get(k string, opts GetOptions) (data []corev1.Event, found bool, err error)
 	Delete(k string) error
+	Keys(l int) ([]string, error)
 }
 
 // Client is a Store implementation for etcd.
@@ -140,6 +141,28 @@ func (c *Client) Delete(k string) error {
 	return err
 }
 
+func (c *Client) Keys(limit int) ([]string, error) {
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), c.timeOut)
+	defer cancel()
+
+	ops := []clientv3.OpOption{
+		clientv3.WithLimit(int64(limit)),
+		clientv3.WithPrefix(),
+	}
+
+	res, err := c.c.Get(ctxWithTimeout, "", ops...)
+	if err != nil {
+		return []string{}, err
+	}
+
+	all := make([]string, 0, len(res.Kvs))
+	for _, kv := range res.Kvs {
+		all = append(all, string(kv.Key))
+	}
+
+	return all, nil
+}
+
 // Close closes the client.
 func (c *Client) Close() error {
 	return c.c.Close()
@@ -167,7 +190,7 @@ func NewClient(options Options) (Store, error) {
 	result := &Client{}
 
 	// Set default values
-	if options.Endpoints == nil || len(options.Endpoints) == 0 {
+	if len(options.Endpoints) == 0 {
 		options.Endpoints = DefaultOptions.Endpoints
 	}
 

@@ -44,6 +44,14 @@ func (m *MockStore) Delete(key string) error {
 	return nil
 }
 
+func (m *MockStore) Keys(l int) ([]string, error) {
+	keys := make([]string, 0, len(m.data))
+	for k, _ := range m.data {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
 func (m *MockStore) SetTTL(_ int) {}
 
 func (m *MockStore) Close() error {

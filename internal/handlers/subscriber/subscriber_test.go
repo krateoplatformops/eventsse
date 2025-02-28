@@ -56,6 +56,14 @@ func (m *MockStore) Close() error {
 	return nil
 }
 
+func (m *MockStore) Keys(l int) ([]string, error) {
+	keys := make([]string, 0, len(m.data))
+	for k, _ := range m.data {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
 func TestServeHTTP(t *testing.T) {
 	ttlCache := cache.NewTTL[string, corev1.Event]()
 	ms := &MockStore{}

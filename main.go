@@ -12,23 +12,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/krateoplatformops/eventsse/internal/cache"
 	"github.com/krateoplatformops/eventsse/internal/env"
 	"github.com/krateoplatformops/eventsse/internal/handlers/getter"
 	"github.com/krateoplatformops/eventsse/internal/handlers/health"
 	"github.com/krateoplatformops/eventsse/internal/handlers/pub"
-	"github.com/krateoplatformops/eventsse/internal/handlers/publisher"
-	"github.com/krateoplatformops/eventsse/internal/handlers/subscriber"
+	"github.com/krateoplatformops/eventsse/internal/handlers/sub"
 	"github.com/krateoplatformops/eventsse/internal/store"
 	"github.com/rs/zerolog"
-	corev1 "k8s.io/api/core/v1"
 
 	_ "github.com/krateoplatformops/eventsse/docs"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 const (
-	serviceName = "eventsse"
+	serviceName    = "eventsse"
+	defaultLimit   = 100
+	fifoMultiplier = 10
 )
 
 func main() {
@@ -36,7 +35,7 @@ func main() {
 	dumpEnv := flag.Bool("dump-env", env.Bool("EVENTSSE_DUMP_ENV", false), "dump environment variables")
 	port := flag.Int("port", env.Int("EVENTSSE_PORT", 8181), "port to listen on")
 	ttlSecs := flag.Int("ttl", env.Int("EVENTSSE_TTL", 120), "stored event exipre time in seconds")
-	limit := flag.Int("limit", env.Int("EVENTSSE_GET_LIMIT", 50),
+	limit := flag.Int("limit", env.Int("EVENTSSE_GET_LIMIT", defaultLimit),
 		"limits the number of results to return from 'Get' request")
 	endpoints := flag.String("etcd-servers", env.String("EVENTSSE_ETCD_SERVERS", "localhost:2379"), "etcd endpoints")
 
@@ -48,7 +47,7 @@ func main() {
 	flag.Parse()
 
 	if *limit <= 0 {
-		*limit = 50
+		*limit = defaultLimit
 	}
 
 	// Initialize the logger
@@ -80,38 +79,37 @@ func main() {
 		evt.Msg("configuration and env vars")
 	}
 
-	ttlCache := cache.NewTTL[string, corev1.Event]()
-	defer func() {
-		ttlCache.Clear()
-	}()
-
-	sto, err := store.NewClient(store.Options{
+	opts := store.Options{
 		Endpoints: strings.Split(*endpoints, ","),
-	})
+	}
+	storage, err := store.NewClient(opts)
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not create ETCD client")
 	}
-	defer sto.Close()
+	defer storage.Close()
 
 	if *ttlSecs <= 0 {
 		*ttlSecs = 180
 	}
-	sto.SetTTL(*ttlSecs)
+	storage.SetTTL(*ttlSecs)
+
+	watcher, err := store.NewWatcher(opts)
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not create ETCD watcher")
+	}
 
 	mux := http.NewServeMux()
 
 	healthy := int32(0)
 
 	mux.Handle("GET /health", health.Check(&healthy, serviceName))
-	mux.Handle("POST /handle", subscriber.Handle(subscriber.HandleOptions{
-		TTLCache: ttlCache,
-		Store:    sto,
-		TTL:      time.Duration(*ttlSecs) * time.Second,
+	mux.Handle("POST /handle", sub.Handle(sub.HandleOptions{
+		Store: storage,
+		TTL:   time.Duration(*ttlSecs) * time.Second,
 	}))
-	mux.Handle("GET /pub", pub.SSEx(sto, *limit))
-	mux.Handle("GET /notifications", publisher.SSE(ttlCache))
-	mux.Handle("GET /events", getter.Events(sto, *limit))
-	mux.Handle("GET /events/{composition}", getter.Events(sto, *limit))
+	mux.Handle("GET /pub", pub.SSE(watcher))
+	mux.Handle("GET /events", getter.Events(storage, *limit))
+	mux.Handle("GET /events/{composition}", getter.Events(storage, *limit))
 	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	server := &http.Server{

@@ -46,7 +46,7 @@ func (m *MockStore) Delete(key string) error {
 
 func (m *MockStore) Keys(l int) ([]string, error) {
 	keys := make([]string, 0, len(m.data))
-	for k, _ := range m.data {
+	for k := range m.data {
 		keys = append(keys, k)
 	}
 	return keys, nil

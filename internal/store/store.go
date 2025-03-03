@@ -14,6 +14,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	RootKey = "krateo.io.events"
+)
+
 type TTLSetter interface {
 	SetTTL(ttl int)
 }
@@ -62,7 +66,7 @@ func (c *Client) PrepareKey(eventId, compositionId string) string {
 	if len(eventId) > 0 {
 		key = path.Join(key, eventId)
 	}
-	key = path.Join("events", strings.ToLower(key))
+	key = path.Join(RootKey, strings.ToLower(key))
 	return key
 }
 
@@ -155,9 +159,12 @@ func (c *Client) Keys(limit int) ([]string, error) {
 		return []string{}, err
 	}
 
-	all := make([]string, 0, len(res.Kvs))
+	all := []string{}
 	for _, kv := range res.Kvs {
-		all = append(all, string(kv.Key))
+		if bytes.Index(kv.Key, []byte{'\x00'}) == 0 {
+			continue
+		}
+		all = append(all, string(bytes.TrimSpace(kv.Key)))
 	}
 
 	return all, nil
@@ -173,8 +180,6 @@ type Options struct {
 	// Addresses of the etcd servers in the cluster, including port.
 	// Optional ([]string{"localhost:2379"} by default).
 	Endpoints []string
-	// Sored Items TTL in seconds
-	TTL int64
 }
 
 // DefaultOptions is an Options object with default values.

@@ -1,6 +1,7 @@
 package pub
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,20 +10,20 @@ import (
 	"github.com/krateoplatformops/eventsse/internal/labels"
 	"github.com/krateoplatformops/eventsse/internal/store"
 	"github.com/rs/zerolog"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	corev1 "k8s.io/api/core/v1"
 )
 
-func SSEx(s store.Store, limit int) http.Handler {
+func SSE(cli clientv3.Watcher) http.Handler {
 	return &handler{
-		store: s,
-		limit: limit,
+		cli: cli,
 	}
 }
 
 var _ http.Handler = (*handler)(nil)
 
 type handler struct {
-	store store.Store
-	limit int
+	cli clientv3.Watcher
 }
 
 // @title EventSSE API
@@ -62,69 +63,56 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	wri.Header().Set("Cache-Control", "no-cache")
 	wri.Header().Set("Connection", "keep-alive")
 
-	ctx := req.Context()
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
 
-	select {
-	case <-ctx.Done():
-		f.Flush()
-		return
-	default:
-		keys, err := r.store.Keys(r.limit)
-		if err != nil {
-			log.Error().Msg("Retrieving store keys")
-		} else {
-			for _, k := range keys {
-				all, ok, err := r.store.Get(k, store.GetOptions{Limit: 1})
-				if err != nil {
-					log.Err(err).Str("key", k).Msg("Unable to get Event from store")
-					continue
-				}
-				if !ok || len(all) == 0 {
-					log.Warn().Str("key", k).Msg("Event not found in store, maybe expired?")
-					continue
-				}
-
-				obj := all[0]
-				dat, err := json.Marshal(&obj)
-				if err != nil {
-					log.Err(err).Str("key", k).Msg("Encoding Event as JSON string")
-					continue
-				}
-
-				cid := labels.CompositionID(&obj)
-				belongsToComposition := len(cid) > 0
-
-				zle := log.Debug().
-					Str("id", k).
-					Str("reason", obj.Reason).
-					Str("message", obj.Message).
-					Str("involvedObject.Name", obj.InvolvedObject.Name).
-					Str("involvedObject.Namespace", obj.InvolvedObject.Namespace)
-
-				if belongsToComposition {
-					zle.Str("event", cid)
-				} else {
-					zle.Str("event", "krateo")
-				}
-
-				zle.Msg("Sending SSE")
-				zle = nil
-
-				fmt.Fprintln(wri, "event: krateo")
-				fmt.Fprintf(wri, "id: %s\n", k)
-				fmt.Fprintf(wri, "data: %s\n\n", string(dat))
-
-				if belongsToComposition {
-					fmt.Fprintf(wri, "event: %s\n", cid)
-					fmt.Fprintf(wri, "id: %s\n", k)
-					fmt.Fprintf(wri, "data: %s\n\n", string(dat))
-				}
-
-				f.Flush()
-
-				r.store.Delete(k)
-				log.Info().Str("key", k).Msg("SSE Done")
+	watchChan := r.cli.Watch(ctx, store.RootKey, clientv3.WithPrefix())
+	for watchResp := range watchChan {
+		for _, ev := range watchResp.Events {
+			key := string(ev.Kv.Key)
+			val := ev.Kv.Value
+			if len(val) == 0 {
+				continue
 			}
+
+			var obj corev1.Event
+			if err := json.Unmarshal(val, &obj); err != nil {
+				log.Warn().Str("key", key).Msgf("Decoding JSON event: %s", err.Error())
+				continue
+			}
+
+			cid := labels.CompositionID(&obj)
+			belongsToComposition := len(cid) > 0
+
+			zle := log.Debug().
+				Str("id", key).
+				Str("reason", obj.Reason).
+				Str("message", obj.Message).
+				Str("involvedObject.Name", obj.InvolvedObject.Name).
+				Str("involvedObject.Namespace", obj.InvolvedObject.Namespace)
+
+			if belongsToComposition {
+				zle.Str("event", cid)
+			} else {
+				zle.Str("event", "krateo")
+			}
+
+			zle.Msg("Sending SSE")
+			zle = nil
+
+			fmt.Fprintln(wri, "event: krateo")
+			fmt.Fprintf(wri, "id: %s\n", key)
+			fmt.Fprintf(wri, "data: %s\n\n", string(val))
+
+			if belongsToComposition {
+				fmt.Fprintf(wri, "event: %s\n", cid)
+				fmt.Fprintf(wri, "id: %s\n", key)
+				fmt.Fprintf(wri, "data: %s\n\n", string(val))
+			}
+
+			f.Flush()
+
+			log.Info().Str("key", key).Msg("SSE Done")
 		}
 	}
 }

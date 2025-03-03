@@ -1,4 +1,4 @@
-package subscriber
+package sub
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/krateoplatformops/eventsse/internal/cache"
 	"github.com/krateoplatformops/eventsse/internal/labels"
 	"github.com/krateoplatformops/eventsse/internal/store"
 	corev1 "k8s.io/api/core/v1"
@@ -16,59 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var _ store.Store = (*MockStore)(nil)
-
-// MockStore è un mock del client store per testare l'handler
-type MockStore struct {
-	data map[string]corev1.Event
-}
-
-func (m *MockStore) PrepareKey(uid, compositionID string) string {
-	return uid + ":" + compositionID
-}
-
-func (m *MockStore) Set(key string, event *corev1.Event) error {
-	if m.data == nil {
-		m.data = make(map[string]corev1.Event)
-	}
-	m.data[key] = *event
-	return nil
-}
-
-func (m *MockStore) Get(key string, opts store.GetOptions) (data []corev1.Event, found bool, err error) {
-	event, exists := m.data[key]
-	if !exists {
-		return nil, false, fmt.Errorf("key '%s' not found", key)
-	}
-	return []corev1.Event{event}, true, nil
-}
-
-func (m *MockStore) Delete(key string) error {
-	delete(m.data, key)
-	return nil
-}
-
-func (m *MockStore) SetTTL(_ int) {
-
-}
-
-func (m *MockStore) Close() error {
-	return nil
-}
-
-func (m *MockStore) Keys(l int) ([]string, error) {
-	keys := make([]string, 0, len(m.data))
-	for k, _ := range m.data {
-		keys = append(keys, k)
-	}
-	return keys, nil
-}
-
 func TestServeHTTP(t *testing.T) {
-	ttlCache := cache.NewTTL[string, corev1.Event]()
 	ms := &MockStore{}
 
-	handler := Handle(HandleOptions{TTLCache: ttlCache, Store: ms})
+	handler := Handle(HandleOptions{Store: ms})
 
 	t.Run("Malformed JSON", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodPost, "/events", bytes.NewBuffer([]byte("{malformed json")))
@@ -126,4 +76,52 @@ func TestServeHTTP(t *testing.T) {
 			t.Errorf("expected response body %q, got %q", expectedKey, rr.Body.String())
 		}
 	})
+}
+
+var _ store.Store = (*MockStore)(nil)
+
+// MockStore è un mock del client store per testare l'handler
+type MockStore struct {
+	data map[string]corev1.Event
+}
+
+func (m *MockStore) PrepareKey(uid, compositionID string) string {
+	return uid + ":" + compositionID
+}
+
+func (m *MockStore) Set(key string, event *corev1.Event) error {
+	if m.data == nil {
+		m.data = make(map[string]corev1.Event)
+	}
+	m.data[key] = *event
+	return nil
+}
+
+func (m *MockStore) Get(key string, opts store.GetOptions) (data []corev1.Event, found bool, err error) {
+	event, exists := m.data[key]
+	if !exists {
+		return nil, false, fmt.Errorf("key '%s' not found", key)
+	}
+	return []corev1.Event{event}, true, nil
+}
+
+func (m *MockStore) Delete(key string) error {
+	delete(m.data, key)
+	return nil
+}
+
+func (m *MockStore) SetTTL(_ int) {
+
+}
+
+func (m *MockStore) Close() error {
+	return nil
+}
+
+func (m *MockStore) Keys(l int) ([]string, error) {
+	keys := make([]string, 0, len(m.data))
+	for k := range m.data {
+		keys = append(keys, k)
+	}
+	return keys, nil
 }

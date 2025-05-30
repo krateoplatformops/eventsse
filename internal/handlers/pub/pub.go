@@ -66,9 +66,9 @@ func (r *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()
 
-	fmt.Fprintln(wri, "event: krateo")
-	fmt.Fprint(wri, "id: 88888888\n")
-	fmt.Fprintf(wri, "data: %s\n\n", `{"info": "Ready to read events from the compositions"}`)
+	fmt.Fprintln(wri, "event: connection-established")
+	fmt.Fprintln(wri, "id: 88888888")
+	fmt.Fprintf(wri, "data: %s\n\n", `{"info": "Ready to watch events"}`)
 	f.Flush()
 
 	watchChan := r.cli.Watch(ctx, store.RootKey, clientv3.WithPrefix())
